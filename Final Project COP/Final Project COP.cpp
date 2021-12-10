@@ -7,6 +7,7 @@
 #include <queue>
 #include <unordered_map>
 
+
 using namespace std;
 
 
@@ -26,6 +27,10 @@ public:
         return numOfRoads;
     }
 
+    int getNumOfVerticies() {
+        return vertices;
+    }
+
     void addEdge(int vertexA, int vertexB, int dWeight) { //have to add edges to both placces, as the graph is undirected
         if (vertexA == vertexB) //incase we generate the same numbers
             return;
@@ -37,8 +42,9 @@ public:
     void deleteBigEdge(int vertexA) { //helper function createdd for the smaller graph specifically
         unordered_map <int, pair<int, int>> duplicates; //first is the index of the adjlist graph and second is the value of the weight
         auto aList = adjListGraph[vertexA]; //vector of pairs
-        int count = 0;
-
+        
+        vector <int> indexsDeleted;
+        
         for (int i = 0; aList.size() > i; i++) {
             if (duplicates.find(aList[i].first) == duplicates.end()) { //if we found no copies
                 duplicates[aList[i].first] = make_pair(i, aList[i].second);
@@ -46,29 +52,26 @@ public:
             else {
                 if (duplicates[aList[i].first].second < aList[i].second) { //if the weight in our umap is less than the one the list, we delete i
                     //if we find a lower weight we replace it 
-                    aList.erase(aList.begin() + i);
-                    i--;
+                    indexsDeleted.push_back(i);
                     
                 }
                 else {
-                    aList.erase(aList.begin() + duplicates[aList[i].first].first - count);
-                    i--;
+                    int index = duplicates[aList[i].first].first;
                     if (i < aList.size()) {
                         duplicates[aList[i].first] = make_pair(i, aList[i].second);
                     }
-                    count++;
-                   
-                   
+                    indexsDeleted.push_back(index);
                 }
 
             }
             
         }
-        vector <pair<int, int>> newVertexEdges;
-        for (auto a : duplicates) {
-            newVertexEdges.push_back(a.second);
+        int count = 0;
+        for (int i = 0; i < indexsDeleted.size(); i++) {
+            aList.erase(aList.begin() + (indexsDeleted[i] - count));
+            count++;
         }
-        adjListGraph[vertexA] = newVertexEdges;
+        adjListGraph[vertexA] = aList;
 
     }
 
@@ -185,12 +188,16 @@ public:
 
     int shortestTimeToComplete(int numOfOrders) { //this function will be used on our smaller graph
         int totalTime = 0;
-        bool* delievered;
-        delievered = new bool[vertices];
+        bool* delievered = new bool[vertices];
+        for (int i = 0; i < vertices; i++) {
+            delievered[i] = false;
+        }
         delievered[0] = true; //setting the first vertex true as that is our head quarters
         int currentVertex = 0; //STARTING Point
         int lowestVertex = 0;
-        while (!delievered) {
+        bool start = true;
+        bool tick = true;
+        while (start || !tick) {
             int lowestTime = { INT_MAX };
             for (int i = 1; i < vertices; i++) {
                 if (getTimeEdge(currentVertex, i) < lowestTime && !delievered[i]) { //we look through all the vertices and see if they ahave been delievered
@@ -201,31 +208,35 @@ public:
             currentVertex = lowestVertex;
             totalTime += lowestTime;
             delievered[currentVertex] = true;
+            start = false;
+            tick = true;
+
+            for (int i = 0; i < vertices; i++) {
+                if (!delievered[i])
+                    tick = false;
+            }
 
         }
-
         return totalTime;
     }
 };
 
 WeightUndirectedGraph smallerGraph(vector<int> deliveryLocations, WeightUndirectedGraph& g, bool bellmans) { //where 
-    WeightUndirectedGraph newGraph(deliveryLocations.size());
+    WeightUndirectedGraph newGraph(deliveryLocations.size()+1);
     for (int i = 0; i < deliveryLocations.size(); i++) {
         if (bellmans) { //we do bellmans to create our graphs
             vector<int> results = g.bellmanFord(deliveryLocations[i]); 
-            for (int j = 1; j < deliveryLocations.size(); j++) {
-                newGraph.addEdge(i, j, deliveryLocations[j]);
+            for (int j = 1; j < (deliveryLocations.size() + 1); j++) {
+                newGraph.addEdge(i, j, results[j]);
             }
         }
         else { //we  use djikstras
             vector<int> results = g.dijkstra(deliveryLocations[i]);
-            for (int j = 1; j < deliveryLocations.size(); j++) {
-                newGraph.addEdge(i, j, deliveryLocations[j]);
+            for (int j = 1; j < (deliveryLocations.size() + 1); j++) {
+                newGraph.addEdge(i, j, results[j]);
             }
         }
-        
     }
-
     return newGraph;
 }
 
@@ -234,32 +245,53 @@ int main()
 {
     int sizeOfCountry = 0;
     int numOfVertices;
-    cout << "*********Welcome to Triple A’s Delivery service*********" << endl;
+    cout << "*********Welcome to Triple A's Delivery service*********" << endl;
     cout << "Enter the Size of your Country(Area in km^2): " << endl;
     cin >> sizeOfCountry;
-    if (sizeOfCountry < 10000) {
+    if (sizeOfCountry < 1000) {
         numOfVertices = 10000;
     }
-    else if (sizeOfCountry < 30000) {
+    else if (sizeOfCountry < 2500) {
+        numOfVertices = 25000;
+    }
+    else if (sizeOfCountry < 5000) {
         numOfVertices = 50000;
     }
-    else if (sizeOfCountry < 50000) {
-        numOfVertices = 70000;
-    }
-    else {
+    else if (sizeOfCountry >= 5000) {
         numOfVertices = 100000;
     }
+    else {
+        cout << "Please input a valid size: " << endl;
+    }
 
-    WeightUndirectedGraph g(1000);
+    WeightUndirectedGraph g(numOfVertices);
     g.generateGraph();
-    vector<int> loc = { 1,2,3,4 };
+
+    int numberOfOrders;
+    string input = "";
+    string output = "Bellman Ford's ";
+    cout << "Your country has " << g.getNumOfVerticies() << " of intersections/locations!" << endl;
+    cout << "And your country has a total of " << g.getNumOfEdges() << " roads!" << endl;
+    cout << "How many orders would you like to place? (Max of 5): " << endl;
+    cin >> numberOfOrders;
+    cout << "How would you like to run this program?" << endl;
+    cout << "Djikstra's or Bellman's? d/b" << endl;
+    cin >> input;
+    bool bell = true;
+    if (input == "d") {
+        bell = false;
+        output = "Djikstra's ";
+    }
+    vector<int> loc;
+    for (int i = 0; i < numberOfOrders; i++) {
+        loc.push_back(rand() % g.getNumOfVerticies());
+    }
+
+    WeightUndirectedGraph q = smallerGraph(loc, g, bell);
     
-    WeightUndirectedGraph q = smallerGraph(loc, g, true);
-    q.printGraph();
-    q.deleteBigEdge(1);
-    q.printGraph();
     
-    
+    cout << "Time(Mins) Calculated by " << output << "algorithim: " <<q.shortestTimeToComplete(loc.size()) << endl;
+
 }
 
 
